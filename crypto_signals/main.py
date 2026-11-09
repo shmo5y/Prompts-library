@@ -44,6 +44,28 @@ def cmd_backtest(a):
           f"فوقها في عيّنة 'خارج العيّنة' وليس التدريب فقط.")
 
 
+def cmd_research(a):
+    import research
+    pairs = [p.strip() for p in a.pairs.split(",")]
+    nb = {"5m": 20000, "15m": 10000}
+    allrows, passed = [], 0
+    for tf in [t.strip() for t in a.tfs.split(",")]:
+        n = a.bars or (3000 if a.demo else nb.get(tf, 8000))
+        print(f"\n=== timeframe {tf} | up to {n} candles per pair ===")
+        res = research.run(pairs, tf, HTF[tf], n, lambda p, t, l: load(p, t, l, a.demo), a.payout)
+        if res is None:
+            continue
+        top, full, be = res
+        allrows.append(full)
+        print(f"\nBreak-even win rate = {be:.1f}%.  TEST columns are on data never used for selection.")
+        print(top.to_string(index=False) if len(top) else "no config had enough trades")
+        passed += int((top.verdict == "PASS").sum())
+    if allrows:
+        pd.concat(allrows).to_csv("research_results.csv", index=False)
+    print("\nRESULT:", f"{passed} config(s) PASSED the final test." if passed else
+          "NO config passed the final test. Do NOT trade real money with this.")
+
+
 def cmd_scan(a):
     tz = ZoneInfo(a.tz)
     pairs = [p.strip() for p in a.pairs.split(",")]
@@ -93,7 +115,7 @@ def cmd_scan(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("backtest", "scan"):
+    for name in ("backtest", "scan", "research"):
         s = sub.add_parser(name)
         s.add_argument("--tf", default="5m", choices=list(HTF))
         s.add_argument("--demo", action="store_true", help="بيانات اصطناعية بدون إنترنت")
@@ -103,6 +125,11 @@ def main():
             s.add_argument("--pairs", default="")
             s.add_argument("--bars", type=int, default=5000)
             s.add_argument("--payout", type=float, default=0.85, help="عائد المنصة، مثلاً 0.85")
+        elif name == "research":
+            s.add_argument("--pairs", default=DEFAULT_PAIRS)
+            s.add_argument("--tfs", default="5m,15m")
+            s.add_argument("--bars", type=int, default=0)
+            s.add_argument("--payout", type=float, default=0.85)
         else:
             s.add_argument("--pairs", default=DEFAULT_PAIRS)
             s.add_argument("--threshold", type=float, default=70)
@@ -110,7 +137,7 @@ def main():
             s.add_argument("--delay", type=float, default=2.0, help="ثوانٍ بعد الإغلاق قبل الجلب")
     a = ap.parse_args()
     try:
-        (cmd_backtest if a.cmd == "backtest" else cmd_scan)(a)
+        {"backtest": cmd_backtest, "scan": cmd_scan, "research": cmd_research}[a.cmd](a)
     except KeyboardInterrupt:
         sys.exit(0)
 

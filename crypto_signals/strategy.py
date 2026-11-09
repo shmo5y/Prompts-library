@@ -62,8 +62,11 @@ def compute(df: pd.DataFrame, htf: pd.DataFrame, tf: str, htf_tf: str) -> pd.Dat
     s_range = pd.Series(np.where(buy > sell, buy, -sell), index=df.index).where(ax < 20, 0)
     s_range = s_range.where((pb <= 0.05) | (pb >= 0.95) | (r < 30) | (r > 70), 0)
 
-    score = (s_trend + s_range).where((vol_ratio >= 0.6) & (vol_ratio <= 3.0), 0)
+    ok = (vol_ratio >= 0.6) & (vol_ratio <= 3.0)
+    score = (s_trend + s_range).where(ok, 0)
     out["score"] = score.fillna(0)
+    out["score_trend"] = s_trend.where(ok, 0).fillna(0)
+    out["score_range"] = s_range.where(ok, 0).fillna(0)
     out["close"], out["rsi"], out["adx"], out["pctb"] = c, r, ax, pb
     out["htf"], out["atr"], out["vol_ratio"] = htr, a, vol_ratio
     out["regime"] = np.where(ax >= 20, "اتجاه", "تذبذب")
