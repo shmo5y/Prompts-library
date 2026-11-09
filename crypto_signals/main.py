@@ -87,6 +87,7 @@ def cmd_scan(a):
                 print(f"  {p}: خطأ بيانات ({e})")
                 continue
             row, last_t = sc.iloc[-1], sc.index[-1]
+            score = row[{"trend": "score_trend", "range": "score_range", "both": "score"}[a.mode]]
             # تقييم الصفقات السابقة
             for s in list(pending):
                 if s["pair"] == p and last_t >= s["exit_bar"]:
@@ -96,13 +97,13 @@ def cmd_scan(a):
                     pending.remove(s)
                     n = stats["w"] + stats["l"]
                     print(f"  {'✔ ربح' if won else '✘ خسارة'} {p} {s['dir']} | الحصيلة {stats['w']}/{n} = {100*stats['w']/n:.0f}%")
-            if abs(row["score"]) >= a.threshold:
+            if abs(score) >= a.threshold:
                 found = True
-                d = "CALL" if row["score"] > 0 else "PUT"
+                d = "CALL" if score > 0 else "PUT"
                 col, ar = (G, "شراء ▲ (Call/Higher)") if d == "CALL" else (R, "بيع ▼ (Put/Lower)")
                 entry = (last_t + timedelta(seconds=period)).tz_convert(tz)
                 exp = entry + timedelta(seconds=period * a.expiry_bars)
-                print(f"{col}{B}  ★ {p}: {ar} | القوة {abs(row['score']):.0f}/100{X}")
+                print(f"{col}{B}  ★ {p}: {ar} | القوة {abs(score):.0f}/100{X}")
                 print(f"    ادخل عند: {entry:%H:%M:%S} (بداية الشمعة القادمة) | الانتهاء: {exp:%H:%M} ({a.expiry_bars*period//60} دقيقة)")
                 print(f"    السعر الآن: {row['close']:.5g} | " + " | ".join(strategy.explain(row)))
                 pending.append({"pair": p, "dir": d, "price": row["close"],
@@ -133,6 +134,7 @@ def main():
         else:
             s.add_argument("--pairs", default=DEFAULT_PAIRS)
             s.add_argument("--threshold", type=float, default=70)
+            s.add_argument("--mode", default="both", choices=["trend", "range", "both"], help="range = طريقة التذبذب (الواعدة)")
             s.add_argument("--expiry-bars", type=int, default=1, dest="expiry_bars")
             s.add_argument("--delay", type=float, default=2.0, help="ثوانٍ بعد الإغلاق قبل الجلب")
     a = ap.parse_args()
