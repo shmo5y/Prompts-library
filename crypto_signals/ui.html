@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>محلل الأزواج الرقمية — IQ Option</title>
+<style>
+:root{--bg:#0f1420;--card:#171e2e;--line:#26304a;--tx:#e8ecf6;--mut:#8b96b4;--g:#19c37d;--r:#ef4b5b;--y:#e8b03a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Segoe UI",Tahoma,sans-serif}
+header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+h1{font-size:18px;margin:0}.warn{font-size:12px;color:var(--y)}
+.wrap{max-width:1100px;margin:auto;padding:16px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+label{font-size:13px;color:var(--mut)}select,input[type=number]{background:#0f1420;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:14px}
+.pairs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{border:1px solid var(--line);border-radius:20px;padding:5px 12px;font-size:13px;cursor:pointer;user-select:none}
+.chip.on{background:#22407a;border-color:#3b64b5}
+button{background:#2b5fd9;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:15px;cursor:pointer}button.sec{background:#26304a}
+button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card.CALL{border-color:var(--g);box-shadow:0 0 0 1px var(--g) inset}.card.PUT{border-color:var(--r);box-shadow:0 0 0 1px var(--r) inset}
+.pair{font-weight:700;font-size:16px;display:flex;justify-content:space-between}
+.act{font-size:24px;font-weight:800;margin:10px 0}.CALL .act{color:var(--g)}.PUT .act{color:var(--r)}.NONE .act{color:var(--mut);font-size:18px}
+.sm{font-size:12px;color:var(--mut);line-height:1.8}.big{font-size:15px;color:var(--tx)}
+.bar{height:6px;background:#0f1420;border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--y)}
+.CALL .bar i{background:var(--g)}.PUT .bar i{background:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right}
+.win{color:var(--g)}.loss{color:var(--r)}.empty{color:var(--mut);padding:20px;text-align:center}
+</style></head><body>
+<header><h1>📊 محلل الأزواج الرقمية — IQ Option (تنفيذ يدوي)</h1>
+<div class="warn">⚠ أداة مساعدة وليست ضماناً للربح — جرّبها على حساب تجريبي أولاً</div></header>
+<div class="wrap">
+<div class="panel">
+ <div class="row">
+  <div><label>الفريم</label><br><select id="tf"><option value="5m">5 دقائق</option><option value="15m" selected>15 دقيقة</option><option value="1m">دقيقة</option></select></div>
+  <div><label>الاستراتيجية</label><br><select id="mode"><option value="range" selected>تذبذب (الأفضل في الاختبار)</option><option value="trend">اتجاه (خاسرة في الاختبار)</option><option value="both">الاثنان (خاسرة في الاختبار)</option></select></div>
+  <div><label>قوة الإشارة (حد أدنى)</label><br><input type="number" id="thr" value="60" min="30" max="100" step="5" style="width:80px"></div>
+  <div><label>مدة الصفقة (شموع)</label><br><input type="number" id="expiry" value="1" min="1" max="4" style="width:70px"></div>
+  <div style="margin-inline-start:auto"><button id="go">حلّل الآن</button></div>
+ </div>
+ <div class="row" style="margin-top:10px"><label><input type="checkbox" id="auto" checked> تحديث تلقائي عند إغلاق كل شمعة</label>
+  <label><input type="checkbox" id="snd" checked> تنبيه صوتي</label>
+  <button class="sec" id="all">تحديد الكل</button><button class="sec" id="none">إلغاء الكل</button><span class="sm" id="status"></span></div>
+ <div class="pairs" id="pairs"></div>
+</div>
+<div class="grid" id="res"><div class="empty" style="grid-column:1/-1">اختر الأزواج ثم اضغط «حلّل الآن»</div></div>
+<div class="panel" style="margin-top:14px"><b>سجل الإشارات ونسبتها الفعلية</b>
+ <div class="sm" id="st">—</div><table id="log"></table></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const LS=JSON.parse(localStorage.getItem('cs')||'{}');
+let PAIRS=[],sel=new Set(LS.sel||["BTC/USD","ETH/USD","XRP/USD","LTC/USD","SOL/USD","ADA/USD","DOGE/USD","BNB/USD"]);
+let last=null,seen=new Set(),timer=null;
+for(const k of ['tf','mode','thr','expiry']) if(LS[k]) $(k).value=LS[k];
+if(LS.auto===false)$('auto').checked=false;
+function save(){localStorage.setItem('cs',JSON.stringify({sel:[...sel],tf:$('tf').value,mode:$('mode').value,thr:$('thr').value,expiry:$('expiry').value,auto:$('auto').checked}))}
+function drawPairs(){$('pairs').innerHTML='';PAIRS.forEach(p=>{const d=document.createElement('div');d.className='chip'+(sel.has(p)?' on':'');d.textContent=p;d.onclick=()=>{sel.has(p)?sel.delete(p):sel.add(p);drawPairs();save()};$('pairs').appendChild(d)})}
+const T=ts=>new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function beep(){try{const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.35)}catch(e){}}
+function cd(entry,period){const left=entry-Math.floor(Date.now()/1000),grace=Math.min(120,period/3);
+ if(left>0){const m=Math.floor(left/60),s=left%60;return `⏳ الدخول بعد ${m}:${String(s).padStart(2,'0')}`}
+ if(-left<=grace)return '🟢 ادخل الآن!';return '⌛ انتهى وقت الدخول — انتظر الإشارة التالية'}
+function render(){if(!last)return;const R=[...last.results].sort((a,b)=>(b.action!='NONE')-(a.action!='NONE')||Math.abs(b.score||0)-Math.abs(a.score||0));
+ $('res').innerHTML=R.map(r=>{
+  if(r.action=='ERROR')return `<div class="card NONE"><div class="pair">${r.pair}</div><div class="sm">تعذّر التحليل: ${r.error}</div></div>`;
+  const i=r.info,ht={1:'صاعد',[-1]:'هابط',0:'محايد'}[i.htf];
+  const head=r.action=='CALL'?'شراء ▲':r.action=='PUT'?'بيع ▼':'لا تنفذ — انتظر';const sub=r.action=='CALL'?'<div class="sm">اضغط الزر الأخضر (Higher / Call)</div>':r.action=='PUT'?'<div class="sm">اضغط الزر الأحمر (Lower / Put)</div>':'';
+  const det=`<div class="sm">السعر: ${r.price} | النظام: ${i.regime} | ADX ${i.adx} | RSI ${i.rsi}<br>بولينجر ${i.pctb} | الفريم الأكبر: ${ht}</div>`;
+  const trade=r.action!='NONE'?`<div class="big">ادخل عند: <b>${T(r.entry_ts)}</b><br>الانتهاء: <b>${T(r.expiry_ts)}</b> (${r.minutes} دقيقة)</div><div class="big cdn" data-e="${r.entry_ts}" data-p="${r.period}">${cd(r.entry_ts,r.period)}</div>`:'';
+  return `<div class="card ${r.action}"><div class="pair"><span>${r.pair}</span><span class="sm">قوة ${Math.abs(r.score)}/100</span></div>
+  <div class="act">${head}</div>${sub}<div class="bar"><i style="width:${Math.min(100,Math.abs(r.score))}%"></i></div>${trade}${det}</div>`}).join('')||'<div class="empty">لا نتائج</div>'}
+async function analyze(){save();if(!sel.size){$('status').textContent='اختر زوجاً واحداً على الأقل';return}
+ $('go').disabled=true;$('status').textContent='جارٍ التحليل...';
+ try{const q=new URLSearchParams({pairs:[...sel].join(','),tf:$('tf').value,mode:$('mode').value,thr:$('thr').value,expiry:$('expiry').value});
+  last=await (await fetch('/api/analyze?'+q)).json();render();
+  let fresh=false;last.results.forEach(r=>{if(r.action=='CALL'||r.action=='PUT'){const k=r.pair+r.entry_ts;if(!seen.has(k)){seen.add(k);fresh=true}}});
+  if(fresh&&$('snd').checked)beep();
+  $('status').textContent='آخر تحديث: '+new Date().toLocaleTimeString('en-GB');loadStats()}
+ catch(e){$('status').textContent='خطأ: '+e}finally{$('go').disabled=false;schedule()}}
+function schedule(){clearTimeout(timer);if(!$('auto').checked)return;const p={'1m':60,'5m':300,'15m':900}[$('tf').value];
+ const now=Date.now()/1000,next=(Math.floor(now/p)+1)*p+3;timer=setTimeout(analyze,(next-now)*1000)}
+async function loadStats(){const s=await (await fetch('/api/stats')).json();
+ $('st').textContent=s.rate===null?`لا توجد صفقات منتهية بعد (قيد الانتظار: ${s.pending}). الحد الأدنى للتعادل ≈ 54%`:`ربح ${s.wins} | خسارة ${s.losses} | النسبة ${s.rate}% | قيد الانتظار ${s.pending}  (التعادل ≈ 54%)`;
+ $('log').innerHTML=s.last.map(x=>`<tr><td>${x.pair}</td><td>${x.dir=='CALL'?'شراء':'بيع'}</td><td>${T(x.bar_ts)}</td><td class="${x.status}">${{win:'✔ ربح',loss:'✘ خسارة',pending:'… قيد الانتظار',unknown:'غير معروف'}[x.status]}</td></tr>`).join('')}
+$('go').onclick=analyze;$('all').onclick=()=>{PAIRS.forEach(p=>sel.add(p));drawPairs();save()};$('none').onclick=()=>{sel.clear();drawPairs();save()};
+['tf','mode','thr','expiry','auto'].forEach(k=>$(k).onchange=()=>{save();schedule()});
+setInterval(()=>document.querySelectorAll('.cdn').forEach(e=>e.textContent=cd(+e.dataset.e,+e.dataset.p)),1000);
+fetch('/api/pairs').then(r=>r.json()).then(p=>{PAIRS=p;drawPairs();loadStats()});
+</script></body></html>

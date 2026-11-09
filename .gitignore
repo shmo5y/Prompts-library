@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+signals_log.json
+research_results.csv
+venv/
